@@ -1,0 +1,6 @@
+{
+    "clamav_server_host_label": "ClamAV Server Host",
+    "clamav_server_host_description": "Where your ClamAV server is hosted. E.g.: localhost",
+    "clamav_server_port_label": "ClamAv Server Port",
+    "clamav_server_port_description": "The port for your ClamAV server. E.g: 3310"
+}

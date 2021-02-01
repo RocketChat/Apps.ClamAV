@@ -1,0 +1,21 @@
+{
+    "id": "55ecd482-392f-447a-8fdc-a44b371ff794",
+    "version": "0.0.1",
+    "requiredApiVersion": "^1.22.1",
+    "iconFile": "icon.png",
+    "author": {
+        "name": "asd",
+        "homepage": "asd",
+        "support": "asd"
+    },
+    "name": "ClamAVTest",
+    "nameSlug": "clamavtest",
+    "classFile": "ClamAvTestApp.ts",
+    "description": "Test connection with ClamAv",
+    "implements": [],
+    "permissions": [
+        {
+            "name": "networking"
+        }
+    ]
+}
