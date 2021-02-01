@@ -6,7 +6,7 @@
 
 import { Buffer } from 'buffer';
 import net = require('net');
-import { Readable, Stream, Transform } from 'stream';
+import { Readable, Transform } from 'stream';
 
 /**
  * Module exports.

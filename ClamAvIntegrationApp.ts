@@ -19,7 +19,7 @@ import { createScanner, isCleanReply } from './clamd';
 const CLAMAV_SERVER_HOST = 'clamav_server_host';
 const CLAMAV_SERVER_PORT = 'clamav_server_port';
 
-export class ClamAvTestApp extends App implements IPreFileUpload {
+export class ClamAvIntegrationApp extends App implements IPreFileUpload {
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
     }

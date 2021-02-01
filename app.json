@@ -4,18 +4,13 @@
     "requiredApiVersion": "^1.22.1",
     "iconFile": "icon.png",
     "author": {
-        "name": "asd",
-        "homepage": "asd",
-        "support": "asd"
+        "name": "Rocket.Chat",
+        "homepage": "https://rocket.chat",
+        "support": "support@rocket.chat"
     },
-    "name": "ClamAVTest",
-    "nameSlug": "clamavtest",
-    "classFile": "ClamAvTestApp.ts",
-    "description": "Test connection with ClamAv",
-    "implements": [],
-    "permissions": [
-        {
-            "name": "networking"
-        }
-    ]
+    "name": "ClamAV Integration",
+    "nameSlug": "clamav-integration",
+    "classFile": "ClamAvIntegrationApp.ts",
+    "description": "This app enables forwarding uploaded files to an open source antivirus (ClamAV) application and prevents the upload from completing in Rocket.Chat if a virus is detected. It works across web browser, desktop apps and mobile apps\n\nUse it to prevent users from spreading viruses and malware via Rocket.Chat\n\nClamAV is an open source (GPL) antivirus engine used in a variety of situations, including email scanning, web scanning, and end point security. It provides a number of utilities including a flexible and scalable multi-threaded daemon, a command line scanner and an advanced tool for automatic database updates.",
+    "implements": ["IPreFileUpload"]
 }
