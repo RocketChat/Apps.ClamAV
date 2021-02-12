@@ -35,6 +35,10 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
         const scanner = createScanner(host, port);
         const result = await scanner.scanBuffer(context.content);
 
+        if (!result) {
+            throw new Error('Scan result was empty! Check the configuration and make sure it points to a valid ClamAV server.');
+        }
+
         if (!isCleanReply(result)) {
            throw new FileUploadNotAllowedException('Virus found');
         }
