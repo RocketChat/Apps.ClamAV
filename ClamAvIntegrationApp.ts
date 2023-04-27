@@ -40,7 +40,7 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             throw new Error('Scan result was empty! Check the configuration and make sure it points to a valid ClamAV server.');
         }
 
-        if (true) {
+        if (!isCleanReply(result)) {
            const text = 'Virus found'
            const user = await read.getUserReader().getById(context.file.userId)
            const room = await read.getRoomReader().getById(context.file.rid)
