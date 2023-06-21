@@ -11,7 +11,7 @@ import {
 import { App } from '@rocket.chat/apps-engine/definition/App';
 import { FileUploadNotAllowedException } from '@rocket.chat/apps-engine/definition/exceptions';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
-import {SettingType} from '@rocket.chat/apps-engine/definition/settings';
+import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { IFileUploadContext, IPreFileUpload } from '@rocket.chat/apps-engine/definition/uploads';
 
 import { createScanner, isCleanReply } from './clamd';
@@ -41,14 +41,15 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
         }
 
         if (!isCleanReply(result)) {
-           const text = 'Virus found'
-           const user = await read.getUserReader().getById(context.file.userId)
-           const room = await read.getRoomReader().getById(context.file.rid)
+            const text = 'Virus found';
+            const user = await read.getUserReader().getById(context.file.userId);
+            const room = await read.getRoomReader().getById(context.file.rid);
 
-           if(room) {
-               await notifyUser({ app: this, read, modify, room, user, text })
-           }
-           throw new FileUploadNotAllowedException(text);
+            if (room) {
+                await notifyUser({ app: this, read, modify, room, user, text });
+            }
+
+            throw new FileUploadNotAllowedException(text);
         }
     }
 
