@@ -14,18 +14,24 @@ import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { IFileUploadContext, IPreFileUpload } from '@rocket.chat/apps-engine/definition/uploads';
 
-import { createScanner, isCleanReply } from './clamd';
-import { notifyUser } from './src/message/notify';
+import {
+    createScanner as defaultCreateScanner,
+    isCleanReply as defaultIsCleanReply,
+    notifyUser as defaultNotifyUser,
+} from './clamd';
 
-const CLAMAV_SERVER_HOST = 'clamav_server_host';
-const CLAMAV_SERVER_PORT = 'clamav_server_port';
+// Rest of the code
 
 export class ClamAvIntegrationApp extends App implements IPreFileUpload {
     private readonly scanner: ClamScanner;
+    private readonly isCleanReply: typeof defaultIsCleanReply;
+    private readonly notifyUser: typeof defaultNotifyUser;
 
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
-        this.scanner = createScanner();
+        this.scanner = defaultCreateScanner();
+        this.isCleanReply = defaultIsCleanReply;
+        this.notifyUser = defaultNotifyUser;
     }
 
     public async executePreFileUpload(context: IFileUploadContext, read: IRead, http: IHttp, persis: IPersistence, modify: IModify): Promise<void> {
@@ -36,35 +42,44 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             throw new Error('Missing ClamAv connection configuration');
         }
 
-        const result = await this.scanner.scanBuffer(context.content, host, port);
+        const scanner = this.scanner || defaultCreateScanner();
+        const isCleanReply = this.isCleanReply || defaultIsCleanReply;
+        const notifyUser = this.notifyUser || defaultNotifyUser;
 
-        if (!result) {
-            throw new Error('Scan result was empty! Check the configuration and make sure it points to a valid ClamAV server.');
-        }
+        try {
+            const result = await scanner.scanBuffer(context.content, host, port);
 
-        let scanStatus = 'no virus found';
-
-        if (!isCleanReply(result)) {
-            scanStatus = 'virus found';
-            const text = 'Virus found';
-            const user = await read.getUserReader().getById(context.file.userId);
-            const room = await read.getRoomReader().getById(context.file.rid);
-
-            if (room) {
-                await notifyUser({ app: this, read, modify, room, user, text });
+            if (!result) {
+                throw new Error('Scan result was empty! Check the configuration and make sure it points to a valid ClamAV server.');
             }
-        }
 
-        // Additional logic to determine if unsure if there is a virus
-        if (scanStatus !== 'virus found' && !isCleanReply(result)) {
-            scanStatus = 'we are not sure';
-        }
+            let scanStatus = 'no virus found';
 
-        console.log(`Scan status: ${scanStatus}`);
+            if (!isCleanReply(result)) {
+                scanStatus = 'virus found';
+                const text = 'Virus found';
+                const user = await read.getUserReader().getById(context.file.userId);
+                const room = await read.getRoomReader().getById(context.file.rid);
 
-        // You can use the scanStatus variable as needed for further processing
-        if (scanStatus === 'virus found') {
-            throw new FileUploadNotAllowedException(scanStatus);
+                if (room) {
+                    await notifyUser({ app: this, read, modify, room, user, text });
+                }
+            }
+
+            // Additional logic to determine if undetermined if there is a virus
+            if (scanStatus !== 'virus found' && !isCleanReply(result)) {
+                scanStatus = 'undetermined';
+            }
+
+            console.log(`Scan status: ${scanStatus}`);
+
+            // You can use the scanStatus variable as needed for further processing
+            if (scanStatus === 'virus found') {
+                throw new FileUploadNotAllowedException(scanStatus);
+            }
+        } catch (error) {
+            console.error('Error occurred during file upload processing:', error);
+            // Handle the error appropriately based on your use case
         }
     }
 
@@ -85,4 +100,8 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             type: SettingType.NUMBER,
             packageValue: 3310,
             i18nLabel: 'clamav_server_port_label',
-            i18nDescription: 'cl
+            i18nDescription: 'clamav_server_port_description',
+            required: true,
+        });
+    }
+}
