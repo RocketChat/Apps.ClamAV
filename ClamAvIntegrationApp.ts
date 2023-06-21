@@ -21,8 +21,11 @@ const CLAMAV_SERVER_HOST = 'clamav_server_host';
 const CLAMAV_SERVER_PORT = 'clamav_server_port';
 
 export class ClamAvIntegrationApp extends App implements IPreFileUpload {
+    private readonly scanner: ClamScanner;
+
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
+        this.scanner = createScanner();
     }
 
     public async executePreFileUpload(context: IFileUploadContext, read: IRead, http: IHttp, persis: IPersistence, modify: IModify): Promise<void> {
@@ -33,14 +36,16 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             throw new Error('Missing ClamAv connection configuration');
         }
 
-        const scanner = createScanner(host, port);
-        const result = await scanner.scanBuffer(context.content);
+        const result = await this.scanner.scanBuffer(context.content, host, port);
 
         if (!result) {
             throw new Error('Scan result was empty! Check the configuration and make sure it points to a valid ClamAV server.');
         }
 
+        let scanStatus = 'no virus found';
+
         if (!isCleanReply(result)) {
+            scanStatus = 'virus found';
             const text = 'Virus found';
             const user = await read.getUserReader().getById(context.file.userId);
             const room = await read.getRoomReader().getById(context.file.rid);
@@ -48,8 +53,18 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             if (room) {
                 await notifyUser({ app: this, read, modify, room, user, text });
             }
+        }
 
-            throw new FileUploadNotAllowedException(text);
+        // Additional logic to determine if unsure if there is a virus
+        if (scanStatus !== 'virus found' && !isCleanReply(result)) {
+            scanStatus = 'we are not sure';
+        }
+
+        console.log(`Scan status: ${scanStatus}`);
+
+        // You can use the scanStatus variable as needed for further processing
+        if (scanStatus === 'virus found') {
+            throw new FileUploadNotAllowedException(scanStatus);
         }
     }
 
@@ -70,8 +85,4 @@ export class ClamAvIntegrationApp extends App implements IPreFileUpload {
             type: SettingType.NUMBER,
             packageValue: 3310,
             i18nLabel: 'clamav_server_port_label',
-            i18nDescription: 'clamav_server_port_description',
-            required: true,
-        });
-    }
-}
+            i18nDescription: 'cl
