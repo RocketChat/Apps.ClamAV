@@ -1,222 +1,79 @@
-'use strict';
-
-/**
- * Module dependencies.
- */
-
 import { Buffer } from 'buffer';
-import net = require('net');
-import { Readable, Transform } from 'stream';
+import net from 'net';
+import { Readable } from 'stream';
 
-/**
- * Module exports.
- */
+interface Scanner {
+  scanStream: (readStream: Readable, timeout?: number) => Promise<string>;
+  scanBuffer: (buffer: Buffer, timeout?: number, chunkSize?: number) => Promise<string>;
+}
 
-export {
-  createScanner,
-  ping,
-  version,
-  isCleanReply,
-};
+function createScanner(host: string, port: number): Scanner {
+  if (!host || !port) {
+    throw new Error('Must provide the host and port that ClamAV server listens to');
+  }
 
-/**
- * Create a scanner
- *
- * @param {string} host clamav server's host
- * @param {number} port clamav sever's port
- * @return {object}
- * @public
- */
-
-function createScanner(host: string, port: number): {
-    scanStream: typeof scanStream;
-    scanBuffer: typeof scanBuffer;
-} {
-  if (!host || !port) { throw new Error('must provide the host and port that clamav server listen to'); }
-
-  /**
-   * scan a read stream
-   * @param {object} readStream
-   * @param {number} [timeout = 5000] the socket's timeout option
-   * @return {Promise}
-   */
-
-  function scanStream(readStream: Readable, timeout?: number): Promise<string> {
-    if (typeof timeout === 'undefined' || timeout < 0) { timeout = 5000; }
-
-    // tslint:disable: only-arrow-functions
-    return new Promise(function(resolve, reject) {
-      let readFinished = false;
-
-      const socket = net.createConnection({
-        host,
-        port,
-      }, function() {
+  function scanStream(readStream: Readable, timeout = 5000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const socket = net.createConnection({ host, port }, () => {
         socket.write('zINSTREAM\0');
-        // fotmat the chunk
+
+        const chunkTransform = (): NodeJS.ReadWriteStream => {
+          return new Transform({
+            transform(chunk, encoding, callback) {
+              socket.pause();
+              socket.write(chunk, encoding, () => {
+                socket.resume();
+                callback();
+              });
+            },
+          });
+        };
+
         readStream.pipe(chunkTransform()).pipe(socket);
-        readStream
-          .on('end', function() {
-            readFinished = true;
-            readStream.destroy();
-          })
-          .on('error', reject);
+
+        readStream.on('end', () => {
+          socket.end();
+        });
+
+        readStream.on('error', (error) => {
+          reject(error);
+          socket.end();
+        });
       });
 
-      const replies: Array<Buffer> = [];
-      socket.setTimeout(timeout as number);
-      socket
-        .on('data', function(chunk) {
-          // clearTimeout(connectAttemptTimer);
-          if (!readStream.isPaused()) { readStream.pause(); }
-          replies.push(chunk);
-        })
-        .on('end', function() {
-          // clearTimeout(connectAttemptTimer);
-          const reply = Buffer.concat(replies);
-          if (!readFinished) { reject(new Error('Scan aborted. Reply from server: ' + reply)); } else { resolve(reply.toString()); }
-        })
-        .on('error', reject);
+      const replies: Buffer[] = [];
+      socket.setTimeout(timeout);
 
-      // const connectAttemptTimer = setTimeout(function() {
-      //   socket.destroy(new Error('Timeout connecting to server'));
-      // }, timeout);
+      socket.on('data', (chunk) => {
+        replies.push(chunk);
+      });
+
+      socket.on('end', () => {
+        const reply = Buffer.concat(replies);
+        resolve(reply.toString());
+      });
+
+      socket.on('error', (error) => {
+        reject(error);
+      });
     });
   }
 
-  /**
-   * scan a Buffer
-   * @param {string} path
-   * @param {number} [timeout = 5000] the socket's timeout option
-   * @param {number} [chunkSize = 64kb] size of the chunk, which send to Clamav server
-   * @return {Promise}
-   */
-
-  function scanBuffer(buffer: Buffer, timeout?: number, chunkSize?: number): Promise<string> {
-    if (typeof timeout !== 'number' || timeout < 0) { timeout = 5000; }
-    if (typeof chunkSize !== 'number') { chunkSize = 64 * 1024; }
-
-    let start = 0;
-    const bufReader = new Readable({
-      highWaterMark: chunkSize,
+  function scanBuffer(buffer: Buffer, timeout = 5000, chunkSize = 64 * 1024): Promise<string> {
+    const readStream = new Readable({
       read(size) {
-        if (start < buffer.length) {
-          const block = buffer.slice(start, start + size);
-          this.push(block);
-          start += block.length;
-        } else {
-          this.push(null);
-        }
+        const block = buffer.slice(this.start, this.start + size);
+        this.push(block.length > 0 ? block : null);
+        this.start += block.length;
       },
     });
-    return scanStream(bufReader, timeout);
+    readStream.start = 0;
+
+    return scanStream(readStream, timeout);
   }
 
   return {
     scanStream,
     scanBuffer,
   };
-}
-
-/**
- * Check the daemon’s state
- *
- * @param {string} host clamav server's host
- * @param {number} port clamav sever's port
- * @param {number} [timeout = 5000] the socket's timeout option
- * @return {boolean}
- * @public
- */
-
-async function ping(host: string, port: number, timeout: number): Promise<boolean> {
-  if (!host || !port) { throw new Error('must provide the host and port that clamav server listen to'); }
-  if (typeof timeout !== 'number' || timeout < 0) { timeout = 5000; }
-
-  const res = await _command(host, port, timeout, 'zPING\0');
-
-  return res.equals(Buffer.from('PONG\0'));
-}
-
-/**
- * Get clamav version detail.
- *
- * @param {string} host clamav server's host
- * @param {number} port clamav sever's port
- * @param {number} [timeout = 5000] pass to sets the socket's timeout optine
- * @return {string}
- * @public
- */
-
-async function version(host: string, port: number, timeout: number): Promise<string> {
-  if (!host || !port) { throw new Error('must provide the host and port that clamav server listen to'); }
-  if (typeof timeout !== 'number' || timeout < 0) { timeout = 5000; }
-
-  const res = await _command(host, port, timeout, 'zVERSION\0');
-
-  return res.toString();
-}
-
-/**
- * Check the reply mean the file infect or not
- *
- * @param {*} reply get from the scanner
- * @return {boolean}
- * @public
- */
-
-function isCleanReply(reply: any): boolean {
-  return reply.includes('OK') && !reply.includes('FOUND');
-}
-
-/**
- * transform the chunk from read stream to the fotmat that clamav server expect
- *
- * @return {object} stream.Transform
- */
-function chunkTransform(): Transform {
-  return new Transform(
-    {
-      transform(chunk, encoding, callback) {
-        const length = Buffer.alloc(4);
-        length.writeUInt32BE(chunk.length, 0);
-        this.push(length);
-        this.push(chunk);
-        callback();
-      },
-
-      flush(callback) {
-        const zore = Buffer.alloc(4);
-        zore.writeUInt32BE(0, 0);
-        this.push(zore);
-        callback();
-      },
-    });
-}
-
-/**
- * helper function for single command function like ping() and version()
- * @param {string} host
- * @param {number} port
- * @param {number} timeout
- * @param {string} command will send to clamav server, either 'zPING\0' or 'zVERSION\0'
- */
-function _command(host: string, port: number, timeout: number, command: string): Promise<Buffer> {
-  return new Promise(function(resolve, reject) {
-    const client = net.createConnection({
-      host,
-      port,
-    }, function() {
-      client.write(command);
-    });
-    client.setTimeout(timeout);
-    const replies: Array<Buffer> = [];
-    client
-      .on('data', function(chunk) {
-        replies.push(chunk);
-      })
-      .on('end', function() {
-        resolve(Buffer.concat(replies));
-      })
-      .on('error', reject);
-  });
 }
