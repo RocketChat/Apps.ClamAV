@@ -165,7 +165,7 @@ async function version(host: string, port: number, timeout: number): Promise<str
  */
 
 function isCleanReply(reply: any): boolean {
-  return reply.includes('OK') && !reply.includes('FOUND');
+  return !reply.includes('FOUND');
 }
 
 /**
