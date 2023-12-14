@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node.js environment
         uses: actions/setup-node@v2.1.2
         with:
-          node-version: "12"
+          node-version: "18"
       # L40-L41 Install the dependencies
       - name: Install dependencies
         run: npm i
