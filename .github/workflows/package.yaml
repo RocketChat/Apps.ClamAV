@@ -1,11 +1,7 @@
 # This workflow will be responsible to pack the app (compiled and not compiled version) to be added as asset on the release
 name: Package App
-# L4-L7 - This section is the push tags trigger that will run the package job
 on:
   workflow_dispatch:
-    push:
-      tags:
-        - "*"
   release:
     types: [published]
 
