@@ -255,8 +255,7 @@ export class ClamAVService {
 
 						// If the scan finished too soon, treat as an error
 						if (!finished) {
-							const err = new Error(`Scan aborted. Reply from server: ${response.toString("utf8")}`);
-							return reject(err);
+							return reject(new Error(`Scan aborted. Reply from server: ${response.toString("utf8")}`));
 						}
 						const result = this._processResult(response.toString("utf8"), file);
 						if (result instanceof Error) {
